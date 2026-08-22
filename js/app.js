@@ -1,116 +1,212 @@
-document.addEventListener("DOMContentLoaded", async () => {
-
-  // ============================================
-  // CONNECTION STATUS
-  // ============================================
-
-  TIUtils.setConnection(navigator.onLine);
-
-  window.addEventListener("online", () => {
-    TIUtils.setConnection(true);
-  });
-
-  window.addEventListener("offline", () => {
-    TIUtils.setConnection(false);
-  });
+document.addEventListener(
+  "DOMContentLoaded",
+  async () => {
 
 
-  // ============================================
-  // RETRY AUTHENTICATION
-  // ============================================
+    // ==========================================
+    // CONNECTION STATUS
+    // ==========================================
 
-  const retryAuthBtn =
-    TIUtils.qs("#retryAuthBtn");
-
-  if (retryAuthBtn) {
-
-    retryAuthBtn.addEventListener(
-      "click",
-      () => location.reload()
+    TIUtils.setConnection(
+      navigator.onLine
     );
 
-  }
+
+    window.addEventListener(
+      "online",
+      () => {
+        TIUtils.setConnection(true);
+      }
+    );
 
 
-  // ============================================
-  // INITIAL LOADING STATE
-  // ============================================
-
-  const loadingScreen =
-    TIUtils.qs("#loadingScreen");
-
-  const mainApp =
-    TIUtils.qs("#mainApp");
-
-  if (loadingScreen) {
-    loadingScreen.classList.remove("hidden");
-  }
-
-  if (mainApp) {
-    mainApp.classList.add("hidden");
-  }
+    window.addEventListener(
+      "offline",
+      () => {
+        TIUtils.setConnection(false);
+      }
+    );
 
 
-  // ============================================
-  // AUTHENTICATION
-  // ============================================
+    // ==========================================
+    // RETRY AUTH
+    // ==========================================
 
-  try {
-
-    const user =
-      await TIAuth.init();
+    const retryAuthBtn =
+      TIUtils.qs("#retryAuthBtn");
 
 
-    // ------------------------------------------
-    // No active session
-    // ------------------------------------------
+    if (retryAuthBtn) {
 
-    if (!user) {
+      retryAuthBtn.addEventListener(
+        "click",
+        () => location.reload()
+      );
 
-      // TIAuth.init() displays the login screen.
-      return;
     }
 
 
-    // ------------------------------------------
-    // Authenticated
-    // ------------------------------------------
+    // ==========================================
+    // SIGN OUT
+    // ==========================================
 
-    console.log(
-      "Tour India user authenticated:",
-      user
-    );
+    const logoutBtn =
+      TIUtils.qs("#logoutBtn");
 
 
-    // Initialize application modules only
-    // after authentication succeeds.
+    if (logoutBtn) {
 
-    TITourForm.init();
+      logoutBtn.addEventListener(
+        "click",
+        async () => {
 
-    TIDashboard.init();
+          const originalText =
+            logoutBtn.textContent;
+
+          logoutBtn.disabled = true;
+
+          logoutBtn.textContent =
+            "Signing out…";
+
+
+          try {
+
+            await TIAuth.logout();
+
+          } catch (error) {
+
+            console.error(
+              "Logout error:",
+              error
+            );
+
+            // TIAuth.logout() already clears
+            // the local session in its finally
+            // block, so still return to login.
+
+          } finally {
+
+            logoutBtn.disabled = false;
+
+            logoutBtn.textContent =
+              originalText;
+
+          }
+
+        }
+      );
+
+    }
+
+
+    // ==========================================
+    // INITIAL LOADING STATE
+    // ==========================================
+
+    const loadingScreen =
+      TIUtils.qs("#loadingScreen");
+
+    const mainApp =
+      TIUtils.qs("#mainApp");
 
 
     if (loadingScreen) {
-      loadingScreen.classList.add("hidden");
+      loadingScreen.classList.remove(
+        "hidden"
+      );
     }
+
 
     if (mainApp) {
-      mainApp.classList.remove("hidden");
+      mainApp.classList.add(
+        "hidden"
+      );
     }
 
 
-    // Load dashboard data.
+    // ==========================================
+    // AUTHENTICATION
+    // ==========================================
 
-    await TIDashboard.refresh();
+    try {
+
+      const user =
+        await TIAuth.init();
 
 
-  } catch (error) {
+      // No active session.
+      // Login screen is displayed by TIAuth.
 
-    console.error(
-      "Application initialization failed:",
-      error
-    );
+      if (!user) {
+        return;
+      }
+
+
+      console.log(
+        "Tour India user authenticated:",
+        user
+      );
+
+
+      // ========================================
+      // INITIALIZE APPLICATION
+      // ========================================
+
+      TITourForm.init();
+
+      TIDashboard.init();
+
+
+      if (loadingScreen) {
+
+        loadingScreen.classList.add(
+          "hidden"
+        );
+
+      }
+
+
+      if (mainApp) {
+
+        mainApp.classList.remove(
+          "hidden"
+        );
+
+      }
+
+
+      // ========================================
+      // LOAD DASHBOARD
+      // ========================================
+
+      try {
+
+        await TIDashboard.refresh();
+
+      } catch (error) {
+
+        console.error(
+          "Dashboard loading failed:",
+          error
+        );
+
+        TIUtils.toast(
+          error.message ||
+          "Unable to load dashboard data.",
+          "error"
+        );
+
+      }
+
+
+    } catch (error) {
+
+      console.error(
+        "Application initialization failed:",
+        error
+      );
+
+    }
 
   }
-
-});
+);
