@@ -2,11 +2,48 @@ window.TIAPI = (() => {
 
   const cfg = window.TOUR_INDIA_CONFIG;
 
-  if (!cfg) {
-    throw new Error(
-      "Tour India configuration has not been loaded."
-    );
+  const TOKEN_KEY = "tourIndiaSessionToken";
+
+
+  /* ============================================================
+     TOKEN MANAGEMENT
+     ============================================================ */
+
+  function getToken() {
+    return sessionStorage.getItem(TOKEN_KEY) ||
+           localStorage.getItem(TOKEN_KEY) ||
+           "";
   }
+
+
+  function setToken(token) {
+
+    if (token) {
+      sessionStorage.setItem(
+        TOKEN_KEY,
+        token
+      );
+    }
+
+  }
+
+
+  function clearToken() {
+
+    sessionStorage.removeItem(
+      TOKEN_KEY
+    );
+
+    localStorage.removeItem(
+      TOKEN_KEY
+    );
+
+  }
+
+
+  /* ============================================================
+     API REQUEST
+     ============================================================ */
 
   async function request(
     action,
@@ -15,16 +52,21 @@ window.TIAPI = (() => {
   ) {
 
     if (
+      !cfg ||
       !cfg.API_BASE_URL ||
       cfg.API_BASE_URL.includes("PASTE_")
     ) {
+
       throw new Error(
         "Apps Script API URL has not been configured."
       );
+
     }
+
 
     const controller =
       new AbortController();
+
 
     const timeout =
       setTimeout(
@@ -32,26 +74,53 @@ window.TIAPI = (() => {
         cfg.REQUEST_TIMEOUT_MS || 15000
       );
 
+
     try {
 
       let url =
         `${cfg.API_BASE_URL}?action=${encodeURIComponent(action)}`;
 
+
+      const token =
+        getToken();
+
+
+      /*
+       * Every protected request receives
+       * the current session token.
+       */
+
+      if (token) {
+
+        url +=
+          `&token=${encodeURIComponent(token)}`;
+
+      }
+
+
       const options = {
+
         method: method,
-        signal: controller.signal,
-        credentials: "omit"
+
+        signal:
+          controller.signal,
+
+        credentials:
+          "omit"
+
       };
 
 
-      // ==========================================
-      // GET
-      // ==========================================
+      /* ========================================================
+         GET
+         ======================================================== */
 
       if (method === "GET") {
 
-        Object.entries(payload)
-          .forEach(([key, value]) => {
+        Object.entries(
+          payload || {}
+        ).forEach(
+          ([key, value]) => {
 
             if (
               value !== undefined &&
@@ -60,42 +129,65 @@ window.TIAPI = (() => {
 
               url +=
                 `&${encodeURIComponent(key)}=` +
-                encodeURIComponent(
+                `${encodeURIComponent(
                   typeof value === "object"
                     ? JSON.stringify(value)
                     : value
-                );
+                )}`;
+
             }
 
-          });
+          }
+        );
 
       }
 
 
-      // ==========================================
-      // POST
-      // ==========================================
+      /* ========================================================
+         POST
+         ======================================================== */
 
       else {
 
-        /*
-         * Send actual JSON as text/plain.
-         *
-         * This matches the Apps Script
-         * parseRequest_() function and avoids
-         * unnecessary CORS preflight.
-         */
-
         options.headers = {
+
           "Content-Type":
-            "text/plain;charset=utf-8"
+            "application/x-www-form-urlencoded;charset=UTF-8"
+
         };
 
+
+        const body = {
+
+          action:
+            action,
+
+          ...payload
+
+        };
+
+
+        /*
+         * Token is included inside payload
+         * as well as URL.
+         */
+
+        if (token) {
+
+          body.token =
+            token;
+
+        }
+
+
         options.body =
-          JSON.stringify({
-            action: action,
-            ...payload
-          });
+          new URLSearchParams({
+
+            payload:
+              JSON.stringify(body)
+
+          }).toString();
+
       }
 
 
@@ -112,6 +204,7 @@ window.TIAPI = (() => {
 
       let result;
 
+
       try {
 
         result =
@@ -127,246 +220,293 @@ window.TIAPI = (() => {
         throw new Error(
           "Invalid API response."
         );
+
       }
 
 
-      if (!result.success) {
+      /* ========================================================
+         API ERROR
+         ======================================================== */
 
-        const err =
+      if (
+        !result.success
+      ) {
+
+        const error =
           new Error(
             result.message ||
             result.error ||
             "Request failed."
           );
 
-        err.code =
+
+        error.code =
           result.errorCode;
 
-        throw err;
+
+        /*
+         * Session expired / invalid.
+         */
+
+        if (
+          result.errorCode ===
+            "AUTHENTICATION_REQUIRED" ||
+          result.errorCode ===
+            "ACCESS_DENIED"
+        ) {
+
+          clearToken();
+
+        }
+
+
+        throw error;
+
       }
 
 
       return result.data;
 
-    } finally {
+    }
 
-      clearTimeout(timeout);
+
+    catch (error) {
+
+      if (
+        error.name ===
+        "AbortError"
+      ) {
+
+        throw new Error(
+          "Request timed out. Please try again."
+        );
+
+      }
+
+
+      throw error;
 
     }
+
+
+    finally {
+
+      clearTimeout(
+        timeout
+      );
+
+    }
+
   }
 
 
-  // ==========================================
-  // PUBLIC API
-  // ==========================================
+  /* ============================================================
+     AUTHENTICATION
+     ============================================================ */
 
-  return {
+  async function login(
+    username,
+    password
+  ) {
 
-
-    // ------------------------------------------
-    // LOGIN
-    // ------------------------------------------
-
-    login: function(
-      username,
-      password
-    ) {
-
-      return request(
+    const data =
+      await request(
         "login",
         {
-          username: username,
-          password: password
+          username,
+          password
         },
         "POST"
       );
 
-    },
 
-
-    // ------------------------------------------
-    // LOGOUT
-    // ------------------------------------------
-
-    logout: function(
-      token
+    if (
+      data &&
+      data.token
     ) {
 
-      return request(
-        "logout",
-        {
-          token: token
-        },
-        "POST"
-      );
-
-    },
-
-
-    // ------------------------------------------
-    // CURRENT USER
-    // ------------------------------------------
-
-    getCurrentUser: function(
-      token
-    ) {
-
-      return request(
-        "currentUser",
-        {
-          token: token
-        },
-        "GET"
-      );
-
-    },
-
-
-    // ------------------------------------------
-    // DASHBOARD
-    // ------------------------------------------
-
-    getDashboardStats: function(
-      token
-    ) {
-
-      return request(
-        "getDashboardStats",
-        {
-          token: token
-        },
-        "GET"
-      );
-
-    },
-
-
-    // ------------------------------------------
-    // SEARCH TOURS
-    // ------------------------------------------
-
-    searchTours: function(
-      query = "",
-      token
-    ) {
-
-      return request(
-        "searchTours",
-        {
-          query: query,
-          token: token
-        },
-        "GET"
-      );
-
-    },
-
-
-    // ------------------------------------------
-    // GET TOUR
-    // ------------------------------------------
-
-    getTour: function(
-      tourId,
-      token
-    ) {
-
-      return request(
-        "getTour",
-        {
-          tourId: tourId,
-          token: token
-        },
-        "GET"
-      );
-
-    },
-
-
-    // ------------------------------------------
-    // CREATE TOUR
-    // ------------------------------------------
-
-    createTour: function(
-      tour,
-      token
-    ) {
-
-      return request(
-        "createTour",
-        {
-          tour: tour,
-          token: token
-        },
-        "POST"
-      );
-
-    },
-
-
-    // ------------------------------------------
-    // UPDATE TOUR
-    // ------------------------------------------
-
-    updateTour: function(
-      tour,
-      token
-    ) {
-
-      return request(
-        "updateTour",
-        {
-          tour: tour,
-          token: token
-        },
-        "POST"
-      );
-
-    },
-
-
-    // ------------------------------------------
-    // ARCHIVE TOUR
-    // ------------------------------------------
-
-    archiveTour: function(
-      tourId,
-      token
-    ) {
-
-      return request(
-        "archiveTour",
-        {
-          tourId: tourId,
-          token: token
-        },
-        "POST"
-      );
-
-    },
-
-
-    // ------------------------------------------
-    // DUPLICATE TOUR
-    // ------------------------------------------
-
-    duplicateTour: function(
-      tourId,
-      copyOptions,
-      token
-    ) {
-
-      return request(
-        "duplicateTour",
-        {
-          tourId: tourId,
-          copyOptions: copyOptions,
-          token: token
-        },
-        "POST"
+      setToken(
+        data.token
       );
 
     }
+
+
+    return data;
+
+  }
+
+
+  async function logout() {
+
+    try {
+
+      await request(
+        "logout",
+        {},
+        "POST"
+      );
+
+    } finally {
+
+      clearToken();
+
+    }
+
+  }
+
+
+  async function getCurrentUser() {
+
+    return request(
+      "getCurrentUser",
+      {},
+      "GET"
+    );
+
+  }
+
+
+  /* ============================================================
+     DASHBOARD
+     ============================================================ */
+
+  function getDashboardStats() {
+
+    return request(
+      "getDashboardStats",
+      {},
+      "GET"
+    );
+
+  }
+
+
+  /* ============================================================
+     TOURS
+     ============================================================ */
+
+  function searchTours(
+    query = ""
+  ) {
+
+    return request(
+      "searchTours",
+      {
+        query
+      },
+      "GET"
+    );
+
+  }
+
+
+  function getTour(
+    tourId
+  ) {
+
+    return request(
+      "getTour",
+      {
+        tourId
+      },
+      "GET"
+    );
+
+  }
+
+
+  function createTour(
+    tour
+  ) {
+
+    return request(
+      "createTour",
+      {
+        tour
+      },
+      "POST"
+    );
+
+  }
+
+
+  function updateTour(
+    tour
+  ) {
+
+    return request(
+      "updateTour",
+      {
+        tour
+      },
+      "POST"
+    );
+
+  }
+
+
+  function archiveTour(
+    tourId
+  ) {
+
+    return request(
+      "archiveTour",
+      {
+        tourId
+      },
+      "POST"
+    );
+
+  }
+
+
+  function duplicateTour(
+    tourId,
+    copyOptions = {}
+  ) {
+
+    return request(
+      "duplicateTour",
+      {
+        tourId,
+        copyOptions
+      },
+      "POST"
+    );
+
+  }
+
+
+  /* ============================================================
+     PUBLIC API
+     ============================================================ */
+
+  return {
+
+    login,
+
+    logout,
+
+    getCurrentUser,
+
+    getDashboardStats,
+
+    searchTours,
+
+    getTour,
+
+    createTour,
+
+    updateTour,
+
+    archiveTour,
+
+    duplicateTour,
+
+    getToken,
+
+    clearToken
 
   };
 
