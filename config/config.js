@@ -1,10 +1,4 @@
-/*
- * PUBLIC FRONTEND CONFIGURATION
- * Do not put secrets here.
- */
-window.TOUR_INDIA_CONFIG = Object.freeze({
-  API_BASE_URL: "PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE",
-  GOOGLE_CLIENT_ID: "PASTE_YOUR_GOOGLE_OAUTH_WEB_CLIENT_ID_HERE",
-  REQUEST_TIMEOUT_MS: 30000,
-  AUTOSAVE_DELAY_MS: 1500
-});
+const CONFIG = {
+  API_BASE_URL:
+    "https://script.google.com/macros/s/AKfycbwMdd3WRGvPeDdTh_7wXLOlj3vezKVLTFaDBlxcgvqFqILiyhunc3SWHbGc2tF8HO5tNA/exec"
+};
