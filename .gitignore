@@ -1,0 +1,23 @@
+# Secrets / local configuration
+.env
+.env.*
+*.pem
+*.key
+credentials.json
+service-account*.json
+token.json
+secrets/
+private/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+
+# Temporary
+*.log
+tmp/
+dist/
