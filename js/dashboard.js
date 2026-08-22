@@ -260,15 +260,16 @@ window.TIDashboard = (() => {
               button.textContent = "Opening…";
 
 
-              const tour =
-                await TIAPI.getTour(
-                  tourId,
-                  token()
-                );
+              const result =
+  await TIAPI.getTour(
+    tourId,
+    token()
+  );
 
+const tour =
+  result?.tour || result;
 
-              TITourForm.open(tour);
-
+TITourForm.open(tour);
 
             } catch (error) {
 
