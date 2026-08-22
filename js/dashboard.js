@@ -1,7 +1,15 @@
 window.TIDashboard = (() => {
 
+  // ==========================================
+  // GET CURRENT SESSION TOKEN
+  // ==========================================
+
   function token() {
-    return TIAuth.getToken();
+    if (typeof TIAuth !== "undefined" && typeof TIAuth.getToken === "function") {
+      return TIAuth.getToken();
+    }
+
+    return null;
   }
 
 
@@ -11,18 +19,17 @@ window.TIDashboard = (() => {
 
   async function loadStats() {
 
-    const stats =
-      await TIAPI.getDashboardStats(
-        token()
-      );
+    const stats = await TIAPI.getDashboardStats(token());
 
     const map = {
 
+      // Backend returns totalTours
       statTotal:
-        stats?.total,
+        stats?.totalTours,
 
+      // Backend returns currentYearTours
       statCurrentYear:
-        stats?.currentYear,
+        stats?.currentYearTours,
 
       statDraft:
         stats?.draft,
@@ -56,6 +63,43 @@ window.TIDashboard = (() => {
       }
     );
 
+
+    return stats;
+  }
+
+
+  // ==========================================
+  // FORMAT DATE/TIME
+  // ==========================================
+
+  function formatUpdated(value) {
+
+    if (!value) {
+      return "—";
+    }
+
+    try {
+
+      const date = new Date(value);
+
+      if (isNaN(date.getTime())) {
+        return value;
+      }
+
+      return date.toLocaleString("en-IN", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit"
+      });
+
+    } catch (error) {
+
+      return value;
+
+    }
+
   }
 
 
@@ -68,7 +112,9 @@ window.TIDashboard = (() => {
     const body =
       TIUtils.qs("#tourTableBody");
 
-    if (!body) return;
+    if (!body) {
+      return;
+    }
 
 
     if (!Array.isArray(tours) || !tours.length) {
@@ -86,65 +132,108 @@ window.TIDashboard = (() => {
 
 
     body.innerHTML =
-      tours.map(t => `
+      tours.map(t => {
 
-        <tr>
+        const updated =
+          t.updatedAt ||
+          t.lastUpdated ||
+          t.createdAt ||
+          "";
 
-          <td>
-            <strong>
-              ${TIUtils.esc(t.tourId || "—")}
-            </strong>
-          </td>
 
-          <td>
-            ${TIUtils.esc(t.school || "—")}
-          </td>
+        return `
 
-          <td>
-            ${TIUtils.esc(t.destination || "—")}
-          </td>
+          <tr>
 
-          <td>
-            ${TIUtils.esc(t.fromDate || "—")}
-          </td>
+            <td>
+              <strong>
+                ${TIUtils.esc(
+                  t.tourId || "—"
+                )}
+              </strong>
+            </td>
 
-          <td>
-            ${TIUtils.esc(t.toDate || "—")}
-          </td>
 
-          <td>
-            ${TIUtils.esc(t.tourLeader || "—")}
-          </td>
+            <td>
+              ${TIUtils.esc(
+                t.school || "—"
+              )}
+            </td>
 
-          <td>
-            <span class="pill">
-              ${TIUtils.esc(t.status || "Draft")}
-            </span>
-          </td>
 
-          <td>
-            ${TIUtils.esc(t.lastUpdated || "—")}
-          </td>
+            <td>
+              ${TIUtils.esc(
+                t.destination || "—"
+              )}
+            </td>
 
-          <td>
 
-            <div class="row-actions">
+            <td>
+              ${TIUtils.esc(
+                t.fromDate || "—"
+              )}
+            </td>
 
-              <button
-                class="btn secondary open-tour"
-                data-id="${TIUtils.esc(t.tourId)}"
-              >
-                Open
-              </button>
 
-            </div>
+            <td>
+              ${TIUtils.esc(
+                t.toDate || "—"
+              )}
+            </td>
 
-          </td>
 
-        </tr>
+            <td>
+              ${TIUtils.esc(
+                t.tourLeader || "—"
+              )}
+            </td>
 
-      `).join("");
 
+            <td>
+
+              <span class="pill">
+                ${TIUtils.esc(
+                  t.status || "Draft"
+                )}
+              </span>
+
+            </td>
+
+
+            <td>
+              ${TIUtils.esc(
+                formatUpdated(updated)
+              )}
+            </td>
+
+
+            <td>
+
+              <div class="row-actions">
+
+                <button
+                  class="btn secondary open-tour"
+                  data-id="${TIUtils.esc(
+                    t.tourId || ""
+                  )}"
+                >
+                  Open
+                </button>
+
+              </div>
+
+            </td>
+
+          </tr>
+
+        `;
+
+      }).join("");
+
+
+    // ==========================================
+    // OPEN TOUR BUTTONS
+    // ==========================================
 
     TIUtils.qsa(".open-tour")
       .forEach(button => {
@@ -153,15 +242,33 @@ window.TIDashboard = (() => {
           "click",
           async () => {
 
+            const tourId =
+              button.dataset.id;
+
+            if (!tourId) {
+              TIUtils.toast(
+                "Tour ID is missing.",
+                "error"
+              );
+              return;
+            }
+
+
             try {
+
+              button.disabled = true;
+              button.textContent = "Opening…";
+
 
               const tour =
                 await TIAPI.getTour(
-                  button.dataset.id,
+                  tourId,
                   token()
                 );
 
+
               TITourForm.open(tour);
+
 
             } catch (error) {
 
@@ -170,11 +277,18 @@ window.TIDashboard = (() => {
                 error
               );
 
+
               TIUtils.toast(
                 error.message ||
                 "Unable to open tour.",
                 "error"
               );
+
+
+            } finally {
+
+              button.disabled = false;
+              button.textContent = "Open";
 
             }
 
@@ -190,9 +304,7 @@ window.TIDashboard = (() => {
   // LOAD TOURS
   // ==========================================
 
-  async function load(
-    query = ""
-  ) {
+  async function load(query = "") {
 
     const body =
       TIUtils.qs("#tourTableBody");
@@ -219,9 +331,11 @@ window.TIDashboard = (() => {
           token()
         );
 
+
       render(tours);
 
       return tours;
+
 
     } catch (error) {
 
@@ -236,14 +350,18 @@ window.TIDashboard = (() => {
         body.innerHTML = `
           <tr>
             <td colspan="9" class="empty">
+
               Unable to load tours.
+
               <br>
+
               <small>
                 ${TIUtils.esc(
                   error.message ||
                   "Connection error."
                 )}
               </small>
+
             </td>
           </tr>
         `;
@@ -285,6 +403,10 @@ window.TIDashboard = (() => {
 
   function init() {
 
+    // ------------------------------------------
+    // NEW TOUR
+    // ------------------------------------------
+
     const newTourBtn =
       TIUtils.qs("#newTourBtn");
 
@@ -306,6 +428,7 @@ window.TIDashboard = (() => {
               error
             );
 
+
             TIUtils.toast(
               error.message ||
               "Unable to open new tour.",
@@ -319,6 +442,10 @@ window.TIDashboard = (() => {
 
     }
 
+
+    // ------------------------------------------
+    // SEARCH
+    // ------------------------------------------
 
     const searchBtn =
       TIUtils.qs("#searchBtn");
@@ -339,6 +466,7 @@ window.TIDashboard = (() => {
               ? searchInput.value.trim()
               : "";
 
+
           load(query)
             .catch(() => {});
 
@@ -347,6 +475,10 @@ window.TIDashboard = (() => {
 
     }
 
+
+    // ------------------------------------------
+    // SEARCH WITH ENTER
+    // ------------------------------------------
 
     if (searchInput) {
 
@@ -372,10 +504,15 @@ window.TIDashboard = (() => {
   }
 
 
+  // ==========================================
+  // PUBLIC METHODS
+  // ==========================================
+
   return {
     init,
     load,
-    refresh
+    refresh,
+    loadStats
   };
 
 })();
