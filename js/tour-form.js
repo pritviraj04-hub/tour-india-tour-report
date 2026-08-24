@@ -559,24 +559,25 @@ window.TITourForm = (() => {
 
       else {
 
-  /*
-   * Generate the idempotency key only once.
-   *
-   * If the browser times out while Apps Script is
-   * still creating the tour, clicking Save again
-   * will reuse this same request ID.
-   *
-   * The backend can therefore return the already-created
-   * tour instead of creating another tour.
-   */
+  // Generate the idempotency/request ID only once
+  // for this new-tour save attempt.
+  //
+  // If the request times out and the user retries,
+  // the same requestId is reused so the backend
+  // returns the existing tour instead of creating
+  // another one.
 
   if (!createRequestId) {
 
     createRequestId =
-      generateRequestId();
+      "REQ-" +
+      Date.now() +
+      "-" +
+      Math.random()
+        .toString(36)
+        .substring(2, 10);
 
   }
-
 
   data =
     await TIAPI.createTour(
@@ -585,7 +586,6 @@ window.TITourForm = (() => {
     );
 
 }
-
 
       if (
         !data ||
