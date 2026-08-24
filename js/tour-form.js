@@ -59,6 +59,53 @@ window.TITourForm = (() => {
     );
 
   }
+  function dateValue(value) {
+
+  if (!value) {
+    return "";
+  }
+
+  const text =
+    String(value);
+
+  // Already in HTML date format
+  if (
+    /^\d{4}-\d{2}-\d{2}$/.test(text)
+  ) {
+    return text;
+  }
+
+  // ISO datetime
+  if (
+    /^\d{4}-\d{2}-\d{2}T/.test(text)
+  ) {
+    return text.substring(0, 10);
+  }
+
+  // Try normal Date parsing as fallback
+  const date =
+    new Date(text);
+
+  if (!isNaN(date.getTime())) {
+
+    const year =
+      date.getFullYear();
+
+    const month =
+      String(
+        date.getMonth() + 1
+      ).padStart(2, "0");
+
+    const day =
+      String(
+        date.getDate()
+      ).padStart(2, "0");
+
+    return `${year}-${month}-${day}`;
+  }
+
+  return "";
+}
 
 
   function token() {
@@ -237,10 +284,10 @@ window.TITourForm = (() => {
         tour.tourLeader || "",
 
       fromDate:
-        tour.fromDate || "",
+        dateValue(tour.fromDate),
 
-      toDate:
-        tour.toDate || "",
+    toDate:
+        dateValue(tour.toDate),
 
       status:
         tour.status || "Draft",
