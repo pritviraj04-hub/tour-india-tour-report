@@ -601,6 +601,7 @@ window.TITourForm = (() => {
 
       editingId =
         data.tour.tourId;
+      createRequestId = null;
       /*
        * Creation is complete.
        * The idempotency key is no longer needed.
