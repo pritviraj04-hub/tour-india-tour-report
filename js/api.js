@@ -10,19 +10,25 @@ window.TIAPI = (() => {
      ============================================================ */
 
   function getToken() {
-    return sessionStorage.getItem(TOKEN_KEY) ||
-           localStorage.getItem(TOKEN_KEY) ||
-           "";
+
+    return (
+      sessionStorage.getItem(TOKEN_KEY) ||
+      localStorage.getItem(TOKEN_KEY) ||
+      ""
+    );
+
   }
 
 
   function setToken(token) {
 
     if (token) {
+
       sessionStorage.setItem(
         TOKEN_KEY,
         token
       );
+
     }
 
   }
@@ -64,6 +70,36 @@ window.TIAPI = (() => {
     }
 
 
+    /* ==========================================================
+       TIMEOUT
+
+       Normal requests:
+       15 seconds
+
+       Create / Update / Archive / Duplicate:
+       60 seconds
+
+       Drive operations can take longer than normal API reads.
+       ========================================================== */
+
+    const isLongRunningAction = [
+      "createTour",
+      "updateTour",
+      "archiveTour",
+      "duplicateTour"
+    ].includes(action);
+
+
+    const timeoutMs =
+      isLongRunningAction
+        ? 60000
+        : (
+            Number(
+              cfg.REQUEST_TIMEOUT_MS
+            ) || 15000
+          );
+
+
     const controller =
       new AbortController();
 
@@ -71,11 +107,15 @@ window.TIAPI = (() => {
     const timeout =
       setTimeout(
         () => controller.abort(),
-        cfg.REQUEST_TIMEOUT_MS || 15000
+        timeoutMs
       );
 
 
     try {
+
+      /* ========================================================
+         BUILD URL
+         ======================================================== */
 
       let url =
         `${cfg.API_BASE_URL}?action=${encodeURIComponent(action)}`;
@@ -86,8 +126,8 @@ window.TIAPI = (() => {
 
 
       /*
-       * Every protected request receives
-       * the current session token.
+       * Protected requests receive the
+       * current session token.
        */
 
       if (token) {
@@ -97,6 +137,10 @@ window.TIAPI = (() => {
 
       }
 
+
+      /* ========================================================
+         REQUEST OPTIONS
+         ======================================================== */
 
       const options = {
 
@@ -112,7 +156,7 @@ window.TIAPI = (() => {
 
 
       /* ========================================================
-         GET
+         GET REQUEST
          ======================================================== */
 
       if (method === "GET") {
@@ -144,7 +188,7 @@ window.TIAPI = (() => {
 
 
       /* ========================================================
-         POST
+         POST REQUEST
          ======================================================== */
 
       else {
@@ -168,8 +212,8 @@ window.TIAPI = (() => {
 
 
         /*
-         * Token is included inside payload
-         * as well as URL.
+         * Token is included in the body as well
+         * as the URL.
          */
 
         if (token) {
@@ -191,11 +235,25 @@ window.TIAPI = (() => {
       }
 
 
+      /* ========================================================
+         SEND REQUEST
+         ======================================================== */
+
+      console.log(
+        `[TIAPI] ${method} ${action} request started. Timeout: ${timeoutMs}ms`
+      );
+
+
       const response =
         await fetch(
           url,
           options
         );
+
+
+      console.log(
+        `[TIAPI] ${action} response received. HTTP ${response.status}`
+      );
 
 
       const text =
@@ -204,6 +262,10 @@ window.TIAPI = (() => {
 
       let result;
 
+
+      /* ========================================================
+         PARSE RESPONSE
+         ======================================================== */
 
       try {
 
@@ -245,7 +307,7 @@ window.TIAPI = (() => {
 
 
         /*
-         * Session expired / invalid.
+         * Authentication failure.
          */
 
         if (
@@ -265,6 +327,11 @@ window.TIAPI = (() => {
       }
 
 
+      console.log(
+        `[TIAPI] ${action} completed successfully.`
+      );
+
+
       return result.data;
 
     }
@@ -272,16 +339,41 @@ window.TIAPI = (() => {
 
     catch (error) {
 
+      /* ========================================================
+         TIMEOUT ERROR
+         ======================================================== */
+
       if (
         error.name ===
         "AbortError"
       ) {
 
-        throw new Error(
-          "Request timed out. Please try again."
+        const timeoutError =
+          new Error(
+            isLongRunningAction
+              ? "The server is taking longer than expected. Please wait a moment and check the dashboard before trying again."
+              : "Request timed out. Please try again."
+          );
+
+
+        timeoutError.code =
+          "REQUEST_TIMEOUT";
+
+
+        console.error(
+          `[TIAPI] ${action} timed out after ${timeoutMs}ms.`
         );
 
+
+        throw timeoutError;
+
       }
+
+
+      console.error(
+        `[TIAPI] ${action} failed:`,
+        error
+      );
 
 
       throw error;
