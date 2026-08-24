@@ -509,18 +509,20 @@ window.TIAPI = (() => {
 
 
   function createTour(
-    tour
-  ) {
+  tour,
+  requestId
+) {
 
-    return request(
-      "createTour",
-      {
-        tour
-      },
-      "POST"
-    );
+  return request(
+    "createTour",
+    {
+      tour,
+      requestId
+    },
+    "POST"
+  );
 
-  }
+}  
 
 
   function updateTour(
