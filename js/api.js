@@ -517,7 +517,16 @@ window.TIAPI = (() => {
     "createTour",
     {
       tour,
-      requestId
+      requestId:
+        requestId ||
+        (
+          "REQ-" +
+          Date.now() +
+          "-" +
+          Math.random()
+            .toString(36)
+            .substring(2, 10)
+        )
     },
     "POST"
   );
