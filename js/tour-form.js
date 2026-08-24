@@ -369,11 +369,10 @@ window.TITourForm = (() => {
   // ==========================================
 
   function blank() {
+  editingId = null;
+  createRequestId = null;
 
-    editingId = null;
-
-
-    fill({
+  fill({
 
       tourId: null,
 
