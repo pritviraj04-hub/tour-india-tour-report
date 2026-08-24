@@ -1,7 +1,7 @@
 window.TITourForm = (() => {
 
   let editingId = null;
-
+  let createRequestId = null;
 
   // ==========================================
   // FIELD MAP
@@ -105,6 +105,27 @@ window.TITourForm = (() => {
   }
 
   return "";
+}
+  function generateRequestId() {
+
+  if (
+    window.crypto &&
+    typeof window.crypto.randomUUID === "function"
+  ) {
+
+    return window.crypto.randomUUID();
+
+  }
+
+  return (
+    "REQ-" +
+    Date.now() +
+    "-" +
+    Math.random()
+      .toString(36)
+      .substring(2, 12)
+  );
+
 }
 
 
@@ -539,13 +560,32 @@ window.TITourForm = (() => {
 
       else {
 
-        data =
-          await TIAPI.createTour(
-            tour,
-            sessionToken
-          );
+  /*
+   * Generate the idempotency key only once.
+   *
+   * If the browser times out while Apps Script is
+   * still creating the tour, clicking Save again
+   * will reuse this same request ID.
+   *
+   * The backend can therefore return the already-created
+   * tour instead of creating another tour.
+   */
 
-      }
+  if (!createRequestId) {
+
+    createRequestId =
+      generateRequestId();
+
+  }
+
+
+  data =
+    await TIAPI.createTour(
+      tour,
+      createRequestId
+    );
+
+}
 
 
       if (
@@ -562,6 +602,11 @@ window.TITourForm = (() => {
 
       editingId =
         data.tour.tourId;
+      /*
+       * Creation is complete.
+       * The idempotency key is no longer needed.
+      */
+createRequestId = null;
 
 
       fill(
